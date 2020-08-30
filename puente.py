@@ -1,5 +1,6 @@
 import eventlet
 import socketio
+import time
 
 ###I Iniciar variables para almacenamiento de nodos conectados
 nodosConectadosBySid = []
@@ -16,18 +17,68 @@ def connect(sid, environ):
     print('connect ', sid)
 
 @sio.event
-def my_message(sid, data):
-    ### TODO logica para mandar el mensaje al nodo correspondiente
+def my_response(sid, data):
+    ### Logica para mandar el mensaje al nodo correspondiente
+    ### Se revisa a quien se mandara el mensaje
+    receptor = data['receptor']
 
-    print('Mensaje recibido: ', data)
+    ### Se busca el sid del receptor
+    sidReceptor = ''
+    for i in nodosConectadosBySid:
+        if i[0] == receptor:
+            sidReceptor = i[1]
+            break
+
+    ### Se envia por broadcast al receptor
+    sio.emit(
+        'my_message',
+        data,
+        room=sidReceptor
+    )    
 
 @sio.event
 def disconnect(sid):
+    global nodosConectadosBySid, tablaConexionesPesos
     ### Hay que manejar la desconexion de un nodo
-    ### TODO obtener la referencia del nombre del nodo en nodosConectadosBySid
-    ### TODO eliminar referencia de nodosConectadosBySid  
-    ### TODO actualizar la tabla de todos haciendo un broadcast para eliminar el nodo por nombre
-    ### TODO no olvidar actualizar la tabla de los demas y los nodos conectados 
+    ### Obtener la referencia del nombre del nodo en nodosConectadosBySid
+    nodo = ''
+    contador = 0
+    for i in nodosConectadosBySid:
+        if i[1] == sid:
+            nodo = i[0]
+            break
+        contador = contador + 1     
+
+    ### Eiminar referencia de nodosConectadosBySid
+    nodosConectadosBySid.pop(contador)
+
+    ### Actualizar la tablaConexionesPesos
+    contadorTabla = 0
+    for j in tablaConexionesPesos:
+        if (nodo == j[0]) or (nodo == j[1]):
+            tablaConexionesPesos.pop(contadorTabla)
+        contadorTabla = contadorTabla + 1
+
+    ### Actualizar la tabla y nodos conectados a los demas
+    nodosConectados = []
+    for conexion in nodosConectadosBySid:
+        nodosConectados.append(conexion[0])
+
+    sio.emit(
+        'recibir_conectados',
+        {
+            'nodos_conectados': nodosConectados
+        }
+    )
+
+    sio.emit(
+        'recibir_tabla_conexiones',
+        {
+            'tabla_conexiones': tablaConexionesPesos
+        }
+    )
+
+    ### Imprimir desconexion
     print('disconnect ', sid)
 
 @sio.event
@@ -68,6 +119,18 @@ def broadcast_tabla(sid, data):
         'recibir_tabla_conexiones',
         {
             'tabla_conexiones': data['tabla_conexiones']
+        }        
+    )
+
+@sio.event
+def broadcast_reiniciar_sequence_number(sid, data):
+    print('dormir')
+    time.sleep(2)
+    print('despertar')
+    sio.emit(
+        'reiniciar_sequence_number',
+        {
+            'nombre': 0
         }        
     )
 
