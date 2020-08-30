@@ -124,9 +124,9 @@ def broadcast_tabla(sid, data):
 
 @sio.event
 def broadcast_reiniciar_sequence_number(sid, data):
-    print('dormir')
-    time.sleep(2)
-    print('despertar')
+    print('Esperar un poco antes de reiniciar el sequence number')
+    time.sleep(5)
+    print('Sequence number de todos reiniciado')
     sio.emit(
         'reiniciar_sequence_number',
         {
