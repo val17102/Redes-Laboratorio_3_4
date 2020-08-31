@@ -1,5 +1,7 @@
 import socketio
+import dijkstra
 from copy import deepcopy
+
 
 ### Iniciar variables para almacenamiento de nodos conectados
 nodosConectados = []
@@ -99,6 +101,22 @@ def flooding(data):
         print('\nEl parquete ya se recibió una vez anteriormente.\n')
 
 
+def linkStateRouting(data):
+    grafoDatos = []
+    mensajeEnvio = {}
+    for conexion in tablaConexionesPesos:
+        grafoDatos.append((conexion[0], conexion[1], conexion[2])) 
+        grafoDatos.append((conexion[1], conexion[0], conexion[2]))
+    
+    graph = dijkstra.Graph(grafoDatos)
+    data['receptor'] = graph.dijkstra(data["emisor"], data["receptor_final"])[1]
+    data['path_appender'].append(nombreNodo)
+    mensajeEnvio = data
+    
+    sio.emit(
+                'my_response',
+                mensajeEnvio
+            )
 
 @sio.event
 def connect():
@@ -120,7 +138,10 @@ def my_message(data):
             pass
         ### TODO Miguel manda a llamar a tu funcion
         elif algoritmo == 'lsr':
-            pass
+            data['emisor'] = nombreNodo
+            data['receptor'] = ''
+            print("LSR: Paso intermedio mensaje de ", data['emisor_original'], " hacia ", data['receptor_final'])
+            linkStateRouting(data)
     else:
         if algoritmo == 'flooding':
             if sequenceNumber != 1:
@@ -169,7 +190,21 @@ def my_message(data):
             pass
         ### TODO Miguel maneja como procesar la data cuando llego a su destino
         elif algoritmo == 'lsr':
-            pass
+            emisorOriginal = data['emisor_original']
+            receptorFinal = data['receptor_final']
+            mensaje = data['mensaje']
+            algoritmo = data['algoritmo']
+            pathAppender = data['path_appender']
+
+
+            print('\n-----------------------------------------------------\n')
+            print('\nEl mensaje llego a su destino.\n')
+            print('\nNodo fuente: ' + str(emisorOriginal) + '\n')
+            print('\nNodo destino: ' + str(receptorFinal) + '\n')
+            print('\nListado de nodos usados: ' + str(pathAppender) + '\n')
+            print('\nMensaje: ' + str(mensaje) + '\n')
+            print('\n-----------------------------------------------------\n')
+
 @sio.event
 def disconnect():
     print('disconnected from server')
@@ -322,18 +357,33 @@ while True:
             ##          }
             ##      )
 
-            ## elif algoritmo == 3:
+            elif algoritmo == 3:
             ##      Algoritmo Miguel
 
-            ##      ### Mandar a llamar a la funcion del algoritmo aqui
+                mensajeAEnviar = {
+                        'emisor_original': nombreNodo,
+                        'emisor': nombreNodo, 
+                        'receptor': '',
+                        'receptor_final': eleccionNodo,
+                        'mensaje': mensaje,
+                        'algoritmo': 'lsr',
+                        'sequence_no': 0,
+                        'path_appender': [],
+                        'saltos': 0,
+                        'distancia': 0
+                    }
+            
+                linkStateRouting(mensajeAEnviar)
 
-            ##      ### Construccion y emision del mensaje
-            ##      sio.emit(
-            ##          'my_message',
-            ##          {
-            ##              'emisor_original': mensaje
-            ##          }
-            ##      )
+
+                """
+                sio.emit(
+                    'my_message',
+                        {
+                        'emisor_original': mensaje
+                        }
+                    )
+                """
 
             ## else:
             ##      print('\nOpcion invalida')
