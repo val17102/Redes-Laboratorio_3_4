@@ -110,6 +110,9 @@ def linkStateRouting(data):
     
     graph = dijkstra.Graph(grafoDatos)
     data['receptor'] = graph.dijkstra(data["emisor"], data["receptor_final"])[1]
+    for conexion in tablaConexionesPesos:
+        if ((conexion[0] == data['emisor'] and conexion[1] == data['receptor']) or (conexion[1] == data['emisor'] and conexion[0] == data['receptor'])):
+            data['distancia'] = data['distancia'] + conexion[2]
     data['path_appender'].append(nombreNodo)
     mensajeEnvio = data
     
@@ -141,6 +144,7 @@ def my_message(data):
             data['emisor'] = nombreNodo
             data['receptor'] = ''
             print("LSR: Paso intermedio mensaje de ", data['emisor_original'], " hacia ", data['receptor_final'])
+            data['saltos'] = data['saltos'] + 1
             linkStateRouting(data)
     else:
         if algoritmo == 'flooding':
@@ -194,14 +198,18 @@ def my_message(data):
             receptorFinal = data['receptor_final']
             mensaje = data['mensaje']
             algoritmo = data['algoritmo']
+            distancia = data['distancia']
             pathAppender = data['path_appender']
-
+            saltos = data['saltos']
+            pathAppender.append(nombreNodo)
 
             print('\n-----------------------------------------------------\n')
             print('\nEl mensaje llego a su destino.\n')
             print('\nNodo fuente: ' + str(emisorOriginal) + '\n')
             print('\nNodo destino: ' + str(receptorFinal) + '\n')
+            print('\nSaltos recorridos: ' + str(saltos + 1) + '\n')
             print('\nListado de nodos usados: ' + str(pathAppender) + '\n')
+            print('\nDistancia: ' + str(distancia) + '\n')
             print('\nMensaje: ' + str(mensaje) + '\n')
             print('\n-----------------------------------------------------\n')
 
