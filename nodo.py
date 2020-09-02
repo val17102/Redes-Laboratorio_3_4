@@ -1,5 +1,6 @@
 import socketio
 import dijkstra
+import math
 from copy import deepcopy
 
 
@@ -15,8 +16,7 @@ sequenceNumber = 0
 ### Conectar al server
 sio = socketio.Client()
 
-### TODO Definicion de las funciones de los 3 algoritmos
-### EXAMPLE WITH FLOODING
+### Definicion de las funciones de los 3 algoritmos
 def flooding(data):
     global sequenceNumber, tablaConexionesPesos
     mensajeEnvio = {}
@@ -69,15 +69,15 @@ def flooding(data):
             subPathAppender.append(nombreNodo)
 
             ### Se hacen logs de que el mensaje paso por aqui y su status
-            print('\n-----------------------------------------------------\n')
-            print('\nEl paso por aqui.\n')
-            print('\nNodo fuente: ' + str(emisor) + '\n')
-            print('\nNodo destino: ' + str(destino) + '\n')
-            print('\nSaltos recorridos: ' + str(saltos) + '\n')
-            print('\nDistancia: ' + str(peso) + '\n')
-            print('\nListado de nodos usados: ' + str(subPathAppender) + '\n')
-            print('\nMensaje: ' + str(mensaje) + '\n')
-            print('\n-----------------------------------------------------\n')
+            #print('\n-----------------------------------------------------\n')
+            #print('\nEl paso por aqui.\n')
+            #print('\nNodo fuente: ' + str(emisor) + '\n')
+            #print('\nNodo destino: ' + str(destino) + '\n')
+            #print('\nSaltos recorridos: ' + str(saltos) + '\n')
+            #print('\nDistancia: ' + str(peso) + '\n')
+            #print('\nListado de nodos usados: ' + str(subPathAppender) + '\n')
+            #print('\nMensaje: ' + str(mensaje) + '\n')
+            #print('\n-----------------------------------------------------\n')
 
             mensajeEnvio = {
                 'emisor_original': emisorOriginal,
@@ -99,7 +99,7 @@ def flooding(data):
         print("\nElije una opcion:\n1. Enviar contenido\n2. Agregar aristas\n3. Cambiar peso de arista\n4. Consultar tabla de pesos\n5. Salir\n>> ")
     else:
         print('\nEl parquete ya se recibió una vez anteriormente.\n')
-
+        print("\nElije una opcion:\n1. Enviar contenido\n2. Agregar aristas\n3. Cambiar peso de arista\n4. Consultar tabla de pesos\n5. Salir\n>> ")
 
 def linkStateRouting(data):
     grafoDatos = []
@@ -117,9 +117,132 @@ def linkStateRouting(data):
     mensajeEnvio = data
     
     sio.emit(
-                'my_response',
-                mensajeEnvio
-            )
+        'my_response',
+        mensajeEnvio
+    )
+
+def distanceVectorRouting(data):
+    global tablaConexionesPesos, nodosConectados
+    mensajeEnvio = {}
+
+    ### Obtenemos las variables del mensaje
+    emisorOriginal = data['emisor_original']
+    emisor = data['emisor']
+    receptor = data['receptor']
+    receptorFinal = data['receptor_final']
+    mensaje = data['mensaje']
+    algoritmo = data['algoritmo']
+    sequenceNo = data['sequence_no']
+    pathAppender = data['path_appender']
+    saltos = data['saltos']
+    distancia = data['distancia']
+
+    ### Se crea la tabla inicial con los vecinos y aristas que se conocen
+    ### Estructura de la tabla [Destination, Distance, Next, Path]
+    tablaNodo = []
+    tablaNodoFinal = []
+    for nodo in nodosConectados:
+        if nodo != nombreNodo:
+            for arista in tablaConexionesPesos:
+                if (nombreNodo == arista[0]) and (nodo == arista[1]):
+                    tablaNodo.append([arista[1],arista[2],arista[1],[nombreNodo,arista[1]], False])
+                elif (nombreNodo == arista[1]) and (nodo == arista[0]):
+                    tablaNodo.append([arista[0],arista[2],arista[0],[nombreNodo,arista[0]], False])
+
+    ciclo = True
+    ### Se realiza el proceso hasta que la tabla este completa
+    while ciclo: 
+        ### Verificar si la tabla ya esta completa
+        contadorCompletos = 0
+        for registro in tablaNodo:
+            if registro[4] == True:
+                contadorCompletos = contadorCompletos + 1
+
+        if contadorCompletos == len(tablaNodo):
+            ciclo = False
+
+        else:
+            nuevosRegistros = []
+            tablaNodoCopia = deepcopy(tablaNodo)
+            contadorVueltas = 0
+            arregloPosiciones = []
+            ### Procedimiento de creacion de relaciones
+            for registro in tablaNodoCopia:
+                if registro[4] == False:
+                    for arista in tablaConexionesPesos:
+                        conexiones = []
+                        if (registro[0] == arista[0]) and (arista[1] not in registro[3]):
+                            path = deepcopy(registro[3])
+                            path.append(arista[1])
+                            conexiones.append([arista[1],arista[2]+registro[1],registro[2],deepcopy(path), False])
+                        elif (registro[0] == arista[1]) and (arista[0] not in registro[3]):
+                            path = deepcopy(registro[3])
+                            path.append(arista[0])
+                            conexiones.append([arista[0],arista[2]+registro[1],registro[2],deepcopy(path), False])
+
+                        nuevosRegistros = nuevosRegistros + conexiones
+                    arregloPosiciones.append(contadorVueltas)
+                else:
+                    pass
+                contadorVueltas = contadorVueltas + 1
+                
+            tablaNodo = tablaNodo + nuevosRegistros
+
+            ### Actualizar el estado de cada nodo expandido
+            for posicion in arregloPosiciones:
+                tablaNodo[posicion][4] = True
+
+    ### Reducir la tabla de nodos hasta tener los mas cortos a cada nodo
+    tablaNodoReducida = []
+    for nodo in nodosConectados:
+        distanciaCorta = math.inf
+        cantidadSaltos = math.inf
+        caminoCorto = []
+        if nodo != nombreNodo:
+            for camino in tablaNodo:
+                if (camino[0] == nodo) and (camino[1] <= distanciaCorta):
+                    if (camino[1] == distanciaCorta) and (len(camino[3]) < cantidadSaltos):
+                        caminoCorto = camino
+                        distanciaCorta = camino[1]
+                        cantidadSaltos = camino[3]
+                    elif camino[1] < distanciaCorta:
+                        caminoCorto = camino
+                        distanciaCorta = camino[1]
+                        cantidadSaltos = camino[3]
+            tablaNodoReducida.append(caminoCorto)
+
+    ### Obtener el nodo a interes para llegar al destino
+    destino = ''
+    for ruta in tablaNodoReducida:
+        if ruta[0] == receptorFinal:
+            destino = ruta[2]
+
+    ### Buscar nuevamente en la tabla de conexiones el peso
+    peso = 0
+    for tab in tablaConexionesPesos:
+        if ((nombreNodo == tab[0]) and (destino == tab[1])) or ((nombreNodo == tab[1]) and (destino == tab[0])):
+            peso = tab[2]
+
+    pathAppender.append(nombreNodo)
+
+    ### Preparar el mensaje para enviar
+    mensajeEnvio = {
+        'emisor_original': emisorOriginal,
+        'emisor': nombreNodo,
+        'receptor': destino,
+        'receptor_final': receptorFinal,
+        'mensaje': mensaje,
+        'algoritmo': 'dvr',
+        'sequence_no': 0,
+        'path_appender': pathAppender,
+        'saltos': saltos + 1,
+        'distancia': distancia + peso
+    }
+
+    sio.emit(
+        'my_response',
+        mensajeEnvio
+    )
 
 @sio.event
 def connect():
@@ -135,22 +258,24 @@ def my_message(data):
     if nodoFinal != nombreNodo:
         ### Mandar a llamar al algoritmo correspondiente
         if algoritmo == 'flooding':
+            print("\nFLOODING: Paso intermedio mensaje de ", data['emisor_original'], " hacia ", data['receptor_final'],"\n")
             flooding(data)
-        ### TODO Esturban manda a llamar a tu funcion
         elif algoritmo == 'dvr':
-            pass
-        ### TODO Miguel manda a llamar a tu funcion
+            print("\nDVR: Paso intermedio mensaje de ", data['emisor_original'], " hacia ", data['receptor_final'],"\n")
+            print("\nElije una opcion:\n1. Enviar contenido\n2. Agregar aristas\n3. Cambiar peso de arista\n4. Consultar tabla de pesos\n5. Salir\n>> ")
+            distanceVectorRouting(data)
         elif algoritmo == 'lsr':
             data['emisor'] = nombreNodo
             data['receptor'] = ''
-            print("LSR: Paso intermedio mensaje de ", data['emisor_original'], " hacia ", data['receptor_final'])
+            print("\nLSR: Paso intermedio mensaje de ", data['emisor_original'], " hacia ", data['receptor_final'],"\n")
+            print("\nElije una opcion:\n1. Enviar contenido\n2. Agregar aristas\n3. Cambiar peso de arista\n4. Consultar tabla de pesos\n5. Salir\n>> ")
             data['saltos'] = data['saltos'] + 1
             linkStateRouting(data)
     else:
         if algoritmo == 'flooding':
             if sequenceNumber != 1:
                 sequenceNumber = 1
-                print('Mensaje recibido: ' + str(data['mensaje']))
+                #print('Mensaje recibido: ' + str(data['mensaje']))
                 emisorOriginal = data['emisor_original']
                 emisor = data['emisor']
                 receptor = data['receptor']
@@ -189,10 +314,28 @@ def my_message(data):
                         'nombre': nombreNodo
                     }
                 )
-        ### TODO Esturban maneja como procesar la data cuando llego a su destino
         elif algoritmo == 'dvr':
-            pass
-        ### TODO Miguel maneja como procesar la data cuando llego a su destino
+            emisorOriginal = data['emisor_original']
+            receptorFinal = data['receptor_final']
+            mensaje = data['mensaje']
+            algoritmo = data['algoritmo']
+            distancia = data['distancia']
+            pathAppender = data['path_appender']
+            saltos = data['saltos']
+            pathAppender.append(nombreNodo)
+
+            print('\n-----------------------------------------------------\n')
+            print('\nEl mensaje llego a su destino.\n')
+            print('\nNodo fuente: ' + str(emisorOriginal) + '\n')
+            print('\nNodo destino: ' + str(receptorFinal) + '\n')
+            print('\nSaltos recorridos: ' + str(saltos) + '\n')
+            print('\nListado de nodos usados: ' + str(pathAppender) + '\n')
+            print('\nDistancia: ' + str(distancia) + '\n')
+            print('\nMensaje: ' + str(mensaje) + '\n')
+            print('\n-----------------------------------------------------\n')
+
+            print("\nElije una opcion:\n1. Enviar contenido\n2. Agregar aristas\n3. Cambiar peso de arista\n4. Consultar tabla de pesos\n5. Salir\n>> ")
+
         elif algoritmo == 'lsr':
             emisorOriginal = data['emisor_original']
             receptorFinal = data['receptor_final']
@@ -212,6 +355,8 @@ def my_message(data):
             print('\nDistancia: ' + str(distancia) + '\n')
             print('\nMensaje: ' + str(mensaje) + '\n')
             print('\n-----------------------------------------------------\n')
+
+            print("\nElije una opcion:\n1. Enviar contenido\n2. Agregar aristas\n3. Cambiar peso de arista\n4. Consultar tabla de pesos\n5. Salir\n>> ")
 
 @sio.event
 def disconnect():
@@ -320,7 +465,7 @@ while True:
     if opcion == 1:
         mensaje = 'HELLO WORLD'
 
-        ### TODO Mandar a llamar al algoritmo correspondiente aqui
+        ### Se manda a llamar al algoritmo correspondiente aqui
         algoritmo = int(input("\nSeleccione el algorimo a utilizar\n1. Flooding\n2. Distance vector routing\n3. Link state routing\n>> "))
         while nombreNodo in nodosConectados:
             nodosConectados.remove(nombreNodo)
@@ -335,6 +480,9 @@ while True:
         if opcionEleccionNodo >= 0 and opcionEleccionNodo <= len(nodosConectados) - 1:
             eleccionNodo = nodosConectados[opcionEleccionNodo]
             print(eleccionNodo)
+            mensaje = input("\nIngrese el mensaje que desea enviar\n>> ")
+
+            ### Envio del mensaje
             if algoritmo == 1:
                 ### Algoritmo Flooding
                 ### Construccion mensaje
@@ -351,23 +499,24 @@ while True:
                         'distancia': 0
                     }
                 )
-            ### TODO Esturban y Miguel aqui construyen su mensaje y directamente
-            ### lo mandan a la funcion, donde deben de controlar el log (ejemplo el mio)
-            ## elif algoritmo == 2:
-            ##      Algoritmo Esturban
-            ##      ### Mandar a llamar a la funcion del algoritmo aqui
-
-            ##      ### Construccion y emision del mensaje
-            ##      sio.emit(
-            ##          'my_message',
-            ##          {
-            ##              'emisor_original': mensaje
-            ##          }
-            ##      )
-
+            elif algoritmo == 2:
+                ### Algoritmo DVR
+                mensajeAEnviar = {
+                        'emisor_original': nombreNodo,
+                        'emisor': nombreNodo, 
+                        'receptor': '',
+                        'receptor_final': eleccionNodo,
+                        'mensaje': mensaje,
+                        'algoritmo': 'dvr',
+                        'sequence_no': 0,
+                        'path_appender': [],
+                        'saltos': 0,
+                        'distancia': 0
+                    }
+            
+                distanceVectorRouting(mensajeAEnviar)
             elif algoritmo == 3:
-            ##      Algoritmo Miguel
-
+                ### Algoritmo LSR
                 mensajeAEnviar = {
                         'emisor_original': nombreNodo,
                         'emisor': nombreNodo, 
@@ -382,19 +531,8 @@ while True:
                     }
             
                 linkStateRouting(mensajeAEnviar)
-
-
-                """
-                sio.emit(
-                    'my_message',
-                        {
-                        'emisor_original': mensaje
-                        }
-                    )
-                """
-
-            ## else:
-            ##      print('\nOpcion invalida')
+            else:
+                print('\nOpcion invalida')
         else:
             print('\nOpcion invalida')
 
