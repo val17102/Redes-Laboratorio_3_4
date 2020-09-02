@@ -62,9 +62,8 @@ def flooding(data):
                 destino = arista[0]
 
             peso = distancia
-            if emisor != nombreNodo:
-                peso = peso + arista[2]
-            
+            peso = peso + arista[2]
+
             subPathAppender = deepcopy(pathAppender)
             subPathAppender.append(nombreNodo)
 
@@ -287,11 +286,6 @@ def my_message(data):
                 saltos = data['saltos']
                 distancia = data['distancia']
 
-                peso = 0
-                for arista in tablaConexionesPesos:
-                    if ((arista[0] == emisor) and (arista[1] == receptor)) or ((arista[0] == receptor) and (arista[1] == emisor)):
-                        peso = arista[2]
-
                 subPathAppender = deepcopy(pathAppender)
                 subPathAppender.append(nombreNodo)
 
@@ -301,7 +295,7 @@ def my_message(data):
                 print('\nNodo fuente: ' + str(emisorOriginal) + '\n')
                 print('\nNodo destino: ' + str(receptorFinal) + '\n')
                 print('\nSaltos recorridos: ' + str(saltos + 1) + '\n')
-                print('\nDistancia: ' + str(distancia + peso) + '\n')
+                print('\nDistancia: ' + str(distancia) + '\n')
                 print('\nListado de nodos usados: ' + str(subPathAppender) + '\n')
                 print('\nMensaje: ' + str(mensaje) + '\n')
                 print('\n-----------------------------------------------------\n')
@@ -486,7 +480,7 @@ while True:
             if algoritmo == 1:
                 ### Algoritmo Flooding
                 ### Construccion mensaje
-                mensajeAEnviar = flooding({
+                mensajeAEnviar = {
                         'emisor_original': nombreNodo,
                         'emisor': nombreNodo, 
                         'receptor': nombreNodo,
@@ -498,7 +492,7 @@ while True:
                         'saltos': 0,
                         'distancia': 0
                     }
-                )
+                flooding(mensajeAEnviar)
             elif algoritmo == 2:
                 ### Algoritmo DVR
                 mensajeAEnviar = {
