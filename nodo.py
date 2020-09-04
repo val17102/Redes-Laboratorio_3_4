@@ -203,11 +203,11 @@ def distanceVectorRouting(data):
                     if (camino[1] == distanciaCorta) and (len(camino[3]) < cantidadSaltos):
                         caminoCorto = camino
                         distanciaCorta = camino[1]
-                        cantidadSaltos = camino[3]
+                        cantidadSaltos = len(camino[3])
                     elif camino[1] < distanciaCorta:
                         caminoCorto = camino
                         distanciaCorta = camino[1]
-                        cantidadSaltos = camino[3]
+                        cantidadSaltos = len(camino[3])
             tablaNodoReducida.append(caminoCorto)
 
     ### Obtener el nodo a interes para llegar al destino
